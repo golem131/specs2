@@ -7,6 +7,8 @@ import core._
 import process._
 import control._
 import producer._
+import fp.syntax._
+import org.specs2.main.Arguments
 
 class IsolatedExecutionSpec extends Spec with ForEachEnv { def is = s2"""
 
@@ -25,10 +27,14 @@ class IsolatedExecutionSpec extends Spec with ForEachEnv { def is = s2"""
   }
 
   def execute(spec: SpecificationStructure) = {
-    val env = Env()
+    val env = Env(arguments = Arguments("isolated"))
     val fragments = spec.structure(env).fragments
-    val results = fragments.update(DefaultExecutor.execute(env)).contents.collect { case f if f.isExecutable => f.execution.result }
-    ProducerOps(results).runList.run
+
+    val results = fragments.update(DefaultExecutor.execute(env)).contents.runList.flatMap(_.collect { case f if f.isExecutable =>
+      f.executionResult
+    }.sequence)
+
+    results.run
   }
 }
 

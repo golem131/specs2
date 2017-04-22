@@ -2,7 +2,7 @@ package org.specs2
 package specification
 package process
 
-import control._
+import control._, Actions._
 import specification.core._
 
 import control._
@@ -15,9 +15,7 @@ import producer._
 trait Statistics {
 
   def statsProcess: AsyncTransducer[Fragment, Stats] =
-    transducers.reduceMap { fragment =>
-      fragment.execution.executedResult.map(Stats.apply).getOrElse(Stats.empty)
-    }
+    transducers.reduceMapEval[ActionStack, Fragment, Stats](_.executionResult.map(Stats.apply))
 
   def defaultStats(fragment: Fragment) =
     if (Fragment.isExample(fragment)) Stats(examples = 1)
@@ -37,19 +35,17 @@ trait Statistics {
     producers.eval(env.statisticsRepository.previousResult(className, f.description).map(r => f.setPreviousResult(r)))
   }
 
-  def fold: FoldState[Fragment, Stats] =
-    Folds.fromMonoidMap { fragment: Fragment =>
-      fragment.execution.executedResult.fold(defaultStats(fragment)) { result =>
-        defaultStats(fragment).withResult(result).copy(timer = fragment.execution.executionTime)
-      }
+  def fold: AsyncFold[Fragment, Stats] { type S = Stats } =
+    Folds.fromMonoidMapEval { fragment: Fragment =>
+      if (fragment.isExecutable) {
+        fragment.executedResult.map { case ExecutedResult(result, timer) =>
+          defaultStats(fragment).withResult(result).copy(timer = timer)
+        }
+      } else ok(Stats.empty)
     }
 }
 
 object Statistics extends Statistics {
-  /** compute the statistics as a Fold */
-  def statisticsFold: Fold[ActionStack, Fragment, Stats] { type S = Stats } =
-    fold.into[ActionStack]
-
   def runStats(spec: SpecStructure): Stats =
-    spec.contents.fold(statisticsFold).runOption.getOrElse(Stats.empty)
+    spec.contents.fold(fold).runOption.getOrElse(Stats.empty)
 }

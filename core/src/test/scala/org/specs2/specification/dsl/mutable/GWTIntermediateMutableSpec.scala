@@ -5,7 +5,7 @@ package mutable
 
 import script.StandardDelimitedStepParsers
 
-class GWTIntermediateSpec extends org.specs2.mutable.Spec with dsl.mutable.GWT with StandardDelimitedStepParsers {
+class GWTIntermediateMutableSpec extends org.specs2.mutable.Spec with dsl.mutable.GWT with StandardDelimitedStepParsers {
 
  addParagraph("adding numbers")
 

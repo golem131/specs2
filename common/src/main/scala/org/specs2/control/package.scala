@@ -40,6 +40,9 @@ package object control {
   type AsyncFold[A, B] = origami.Fold[Action, A, B]
   type AsyncSink[A] = origami.Fold[Action, A, Unit]
 
+  implicit val idToAction: NaturalTransformation[Id, Action] =
+    NaturalTransformation.naturalId[Action]
+
   lazy val executorServices = ExecutorServices.fromGlobalExecutionContext
   import executorServices._
 
@@ -63,6 +66,14 @@ package object control {
     Await.result(action.execSafe.flatMap(_.fold(t => exception[S, A](t), a => Eff.pure[S, A](a))).
       runError.runConsoleToPrinter(printer).runWarnings.into[Fx1[TimedFuture]].runAsync, Duration.Inf)
   }
+
+  def runActionFuture[A](action: Action[A], printer: String => Unit = s => ()): Future[A] =
+    action.runError.runConsoleToPrinter(printer).discardWarnings.execSafe.runAsync.flatMap {
+      case Left(t)               => Future.failed(t)
+      case Right(Left(Left(t)))  => Future.failed(t)
+      case Right(Left(Right(s))) => Future.failed(new Exception(s))
+      case Right(Right(a))       => Future.successful(a)
+    }
 
   def runAction[A](action: Action[A], printer: String => Unit = s => ()): Error Either A =
     attemptExecuteAction(action, printer).fold(
@@ -92,6 +103,14 @@ package object control {
     try Await.result(action.runError.runConsoleToPrinter(printer).runWarnings.execSafe.runAsync, Duration.Inf)
     catch { case NonFatal(t) => Left(t) }
 
+  def futureAction[A](action: Action[A], printer: String => Unit = s => ()): Future[A] =
+    action.runError.runConsoleToPrinter(printer).discardWarnings.execSafe.runAsync.flatMap {
+      case Left(t) => Future.failed(t)
+      case Right(Left(Left(t))) => Future.failed(t)
+      case Right(Left(Right(s))) => Future.failed(new Exception(s))
+      case Right(Right(a)) => Future.successful(a)
+    }
+
   def attemptExecuteOperation[A](operation: Operation[A], printer: String => Unit = s => ()): Throwable Either (Error Either A, List[String]) =
     operation.runError.runConsoleToPrinter(printer).runWarnings.execSafe.run
 
@@ -120,6 +139,9 @@ package object control {
   }
 
   implicit class actionOps[T](action: Action[T]) {
+    def attempt: Throwable Either T =
+      attemptAction(action)
+
     def run(implicit e: Monoid[T]): T =
       runAction(action, println) match {
         case Right(a) => a
@@ -191,6 +213,12 @@ package object control {
     def asyncDelayAction[A](a: =>A): Action[A] =
       futureDelay[ActionStack, A](a)
 
+    def asyncFuture[A](fa: =>Future[A], timeout: Option[FiniteDuration] = None): Action[A] =
+      futureDefer[ActionStack, A](fa, timeout)
+
+    def timedFuture[A](fa: TimedFuture[A]): Action[A] =
+      send[TimedFuture, ActionStack, A](fa)
+
     def asyncForkAction[A](a: =>A, ec: ExecutionContext, timeout: Option[FiniteDuration] = None): Action[A] =
       futureFork[ActionStack, A](a, ec, timeout)
 
@@ -228,6 +256,10 @@ package object control {
 
   implicit def operationToAction[A](operation: Operation[A]): Action[A] =
     operation.into[ActionStack]
+
+  implicit def operationToActionNat[A]: Operation ~> Action = new (Operation ~> Action) {
+    def apply[X](operation: Operation[X]): Action[X] = operation.into[ActionStack]
+  }
 
   object Operations {
 

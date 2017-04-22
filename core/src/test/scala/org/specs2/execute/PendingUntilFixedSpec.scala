@@ -35,6 +35,6 @@ class PendingUntilFixedSpec extends Specification {
   }
 
   def execute(f: Fragment) =
-    DefaultExecutor.executeAll(f).head.executionResult
+    DefaultExecutor.executeAll(f).head.executionResult.run
 
 }

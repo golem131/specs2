@@ -39,7 +39,7 @@ trait HtmlPrinter extends Printer {
 
   /** @return a SinkTask for the Html output */
   def sink(env: Env, spec: SpecStructure): AsyncSink[Fragment] = {
-    ((Statistics.fold zip fold.list[Fragment] zip SimpleTimer.timerFold).into[ActionStack] <*
+    ((Statistics.fold zip fold.list[Fragment].into[Action] zip SimpleTimer.timerFold.into[Action]) <*
      fold.fromStart((getHtmlOptions(env.arguments) >>= (options => copyResources(env, options))).void)).mapFlatten { case ((stats, fragments), timer) =>
       val expecutedSpec = spec.copy(lazyFragments = () => Fragments(fragments:_*))
       getPandoc(env).flatMap {

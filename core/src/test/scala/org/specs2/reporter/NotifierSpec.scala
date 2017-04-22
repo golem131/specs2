@@ -94,7 +94,7 @@ class NotifierSpec(env: Env) extends Specification { def is = s2"""
         "[success] ex1",
         "[close  ] group1",
         "[step   ]",
-        "[error  ] java.lang.RuntimeException: boom",
+        "[error  ] org.specs2.specification.core.FatalExecution: boom",
         "[end    ] NotifierSpec3").mkString("\n")
   }
 

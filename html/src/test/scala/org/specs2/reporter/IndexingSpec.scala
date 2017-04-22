@@ -23,7 +23,7 @@ class IndexingSpec(implicit ec: ExecutionContext) extends Specification { def is
 
   def save = {
     val path = "target" / "test" / "IndexingSpec" | "index.js"
-    runAction(emitAsync(pages:_*).fold(indexFold(path).into[ActionStack]))
+    runAction(emitAsync(pages:_*).fold(indexFold(path).into[Action]))
 
     val expected =
     s"""|var tipuesearch = {"pages": [{"title":"page 1", "text":"content1", "tags":"tag1 tag2", "loc":"page1"},

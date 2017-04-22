@@ -7,6 +7,7 @@ import main.Arguments
 import execute._
 import io.FileName
 import control._
+import Actions._
 import io._
 import scala.collection.JavaConverters._
 import Exceptions._
@@ -24,7 +25,7 @@ trait JUnitXmlPrinter extends Printer {
   def finalize(env: Env, specs: List[SpecStructure]): Action[Unit] = Actions.unit
 
   def sink(env: Env, spec: SpecStructure): AsyncSink[Fragment] =
-    (Statistics.fold zip fold.list[Fragment]).into[ActionStack].
+    (Statistics.fold zip fold.list[Fragment].into[Action]).
       mapFlatten(saveResults(env, spec))
 
   def saveResults(env: Env, spec: SpecStructure): ((Stats, List[Fragment])) =>  Action[Unit] = { case (stats, fs) =>
@@ -35,9 +36,12 @@ trait JUnitXmlPrinter extends Printer {
 
   def descriptionFold(spec: SpecStructure, stats: Stats, env: Env): AsyncFold[(Fragment, Description), TestSuite] = {
     val suite = TestSuite(specDescription(spec), spec.specClassName, stats.errors, stats.failures, stats.skipped, stats.timer.totalMillis)
-    fold.fromFoldLeft[ActionStack, (Fragment, Description), TestSuite](suite) { case (res, (f, d)) =>
-      if (Fragment.isExample(f)) res.addTest(new TestCase(d, f.executionResult, f.execution.executionTime.totalMillis)(env.arguments))
-      else                       res
+    fold.fromFoldLeft[Action, (Fragment, Description), TestSuite](suite) { case (res, (f, d)) =>
+      if (Fragment.isExample(f))
+        f.executedResult.map { case ExecutedResult(result, timer) =>
+          res.addTest(new TestCase(d, result, timer.totalMillis)(env.arguments))
+        }
+      else ok(res)
     }
   }
 

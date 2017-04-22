@@ -6,8 +6,7 @@ package mutable
 import main.Arguments
 import control._
 import producer._
-import execute.{Pending, Result, ResultLogicalCombinators, Success}
-import ResultLogicalCombinators._
+import execute.Pending
 import reflect.Classes
 import specification.create.FragmentsFactory
 import specification.core._
@@ -92,34 +91,29 @@ trait MutableFragmentBuilder extends FragmentBuilder
     targetPath.isEmpty
   }
 
-  private def duplicateExecution(effectPath: EffectPath) = {
-    Execution.withEnvSync { env: Env =>
-
-      def instance =
-        runOperation(Classes.createInstanceFromClass[MutableFragmentBuilder](getClass.asInstanceOf[Class[MutableFragmentBuilder]],
-          getClass.getClassLoader, env.defaultInstances),
-          env.systemLogger)
+  private def duplicateExecution(effectPath: EffectPath): Execution = {
+    val instance = runOperation(Classes.createInstanceFromClass[MutableFragmentBuilder](getClass.asInstanceOf[Class[MutableFragmentBuilder]],
+      getClass.getClassLoader, env.defaultInstances),
+      env.systemLogger)
 
       instance match {
-        case Left(e) => e.fold(t => org.specs2.execute.Error(t), m => org.specs2.execute.Error(m))
+        case Left(e) =>
+          Execution.result(e.fold(t => org.specs2.execute.Error(t), m => org.specs2.execute.Error(m)))
 
         case Right(newSpec) =>
           newSpec.targetPath = Some(effectPath)
           val pathFragments = newSpec.replayFragments(env)
-          val previousSteps = pathFragments.filter(f => Fragment.isStep(f) && f.execution.isolable)
+          val previousSteps = pathFragments.filter(f => Fragment.isStep(f) && f.execution.isolable).toList
 
+          val previousStepExecutions = previousSteps.collect {
+            case f if Fragment.isStep(f) && f.execution.isolable => f.execution
+          }
           val isolatedExecution = pathFragments.lastOption.map(_.execution).
             getOrElse(Execution.executed(Pending("isolation mode failure - could not find an isolated fragment to execute")))
 
-          val previousStepsResult =
-            previousSteps.foldLeft(Success(): Result)(_ and _.execution.execute(outer.env).result)
-
-          if (previousStepsResult.isSuccess)
-            isolatedExecution.execute(outer.env).result
-          else
-            previousStepsResult
+          isolatedExecution.afterSuccessfulSequential(previousStepExecutions)(env)
       }
-    }
+
   }
 
 }

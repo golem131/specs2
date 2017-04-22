@@ -6,6 +6,7 @@ import execute._
 import org.specs2.specification.core.SpecificationStructure
 import org.specs2.specification.process.DefaultExecutor
 import _root_.org.specs2.mutable.{Specification => Spec}
+import fp.syntax._
 
 class BeforeAfterAroundSpec extends Specification with Grouped { def is = s2"""
 
@@ -49,7 +50,7 @@ class BeforeAfterAroundSpec extends Specification with Grouped { def is = s2"""
   }
 
   def executeContains(s: SpecificationStructure with StringOutput, messages: String*) = {
-    DefaultExecutor.executeSeq(s.is.fragments.fragments).map(_.executionResult).toList
+    DefaultExecutor.executeSeq(s.is.fragments.fragments).traverse(_.executionResult).run
     s.messages must contain(allOf(messages:_*)).inOrder
   }
 
